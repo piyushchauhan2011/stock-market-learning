@@ -1,10 +1,11 @@
 # Stock Market Learning
 
 A hands-on, notebook-driven introduction to stock-market analysis in Python.
-Ten ordered notebooks (00–09) walk through price data, charts, hand-computed
-technical indicators, risk statistics, company fundamentals, news sentiment,
-research documents, and a composite "will this stock go up?" report — all built
-on a small, readable package (`stocklearn`) you can read end to end.
+Thirteen ordered notebooks (00–12) walk through price data, charts,
+hand-computed technical indicators, risk statistics, company fundamentals, news
+sentiment, research documents, a composite "will this stock go up?" report, and
+finally the trading layer — orders, a paper broker, strategies and backtests —
+all built on a small, readable package (`stocklearn`) you can read end to end.
 
 > **Educational analysis only — not financial advice.** Nothing here predicts
 > prices: the indicators and the final report are descriptive textbook heuristics.
@@ -45,6 +46,9 @@ sets the ticker in one place (`ticker = "AAPL"`), so swap it and re-run.
 | `07_news_and_sentiment.ipynb` | Where headlines come from, VADER scoring, aggregate verdict, and its failure modes |
 | `08_reading_documents.ipynb` | Extracting text/tables from PDF, Excel and Word research documents |
 | `09_full_analysis.ipynb` | Assembling every signal into one descriptive report |
+| `10_orders_and_execution.ipynb` | The order lifecycle: market vs limit vs stop, what fills where, and take-profit / stop-loss brackets |
+| `11_backtesting_strategies.ipynb` | Defining a strategy, the no-lookahead rule, and reading return / CAGR / Sharpe / drawdown / win rate / profit factor |
+| `12_paper_trading.ipynb` | Placing orders by hand, stepping bars, watching fills and P&L — and why paper trading flatters you |
 
 ## The `stocklearn` package
 
@@ -60,6 +64,29 @@ notebooks call it rather than duplicating logic.
 | `sentiment.py` | VADER scoring: `analyze_text`, `score_headlines`, `aggregate_sentiment` |
 | `docs.py` | `read_pdf`, `read_excel`, `read_docx` |
 | `report.py` | `summarize()` + `format_report()` — the composite descriptive report |
+| `orders.py` | `Order` + `market_buy`/`limit_sell`/`stop_buy`/… helpers — market, limit and stop orders, with optional take-profit / stop-loss brackets |
+| `broker.py` | `PaperBroker` — fills orders against bars you feed it, tracks cash, positions, realised trades and equity |
+| `strategy.py` | `Context` + `on_bar()` interface, and five example strategies (buy-and-hold, SMA cross, RSI reversion, MACD cross, Bollinger breakout) |
+| `backtest.py` | `run_backtest()` — bar-by-bar replay with next-open fills, plus `summarize_backtest()` for the metrics table |
+
+### Paper trading & backtesting
+
+`orders.py` → `broker.py` → `strategy.py` → `backtest.py` add the layer that turns
+analysis into *action*: place an order, watch it fill, watch profit and loss
+unfold. The engine is hand-rolled (`for` loop over bars, no new dependency — the
+same choice as the hand-computed indicators) because that is the point: an
+event-driven loop shows the order mechanics that a vectorised backtester hides.
+
+Deliberate limits, all visible in the code:
+
+- **Long-only.** A sell reduces or closes a position; there is no short selling.
+- **Historical replay, not live trading.** Bars come from `get_history()`; there
+  is no streaming feed, so "paper trading" here means stepping through real past
+  bars, one at a time.
+- **No lookahead.** A signal computed from bar *i*'s close fills at bar *i+1*'s
+  open, because that is the earliest price a trader could actually have got.
+- **Flat commission, default `0.0`**, charged per fill; no slippage, no latency,
+  no partial fills. Real trading is worse than this in every one of those ways.
 
 ### Run the report from the command line
 
@@ -81,16 +108,21 @@ uv run pytest -q
 
 `tests/test_indicators.py` pins the indicator mathematics against hand-computed
 expectations (SMA/EMA definitions, RSI range and saturation, MACD histogram
-identity, Bollinger ordering, ATR, drawdown).
+identity, Bollinger ordering, ATR, drawdown). `tests/test_orders.py`,
+`tests/test_broker.py` and `tests/test_backtest.py` do the same for the trading
+layer: order validation, fill prices (including gap-through behaviour), bracket
+priority, rejection paths, commission, position averaging, and the no-lookahead
+timing rule.
 
 ## Layout
 
 ```
-src/stocklearn/    the package (data, indicators, fundamentals, news, sentiment, docs, report)
-notebooks/         the 00–09 curriculum
+src/stocklearn/    the package (data, indicators, fundamentals, news, sentiment, docs, report,
+                   orders, broker, strategy, backtest)
+notebooks/         the 00–12 curriculum
 scripts/           make_sample_docs.py — regenerates sample_docs/ (idempotent)
 sample_docs/       committed fixtures: earnings PDF, Excel model, Word research note
-tests/             indicator unit tests
+tests/             indicator, order, broker and backtest unit tests
 data/cache/        downloaded price/fundamental Parquet cache (git-ignored)
 ```
 
@@ -101,8 +133,10 @@ data/cache/        downloaded price/fundamental Parquet cache (git-ignored)
   and return `None` when a value is genuinely unavailable.
 - News sentiment is lexicon-based (VADER): deterministic and offline, but blind
   to sarcasm and context. Empty news means a neutral verdict, not good news.
-- Everything is a simplification chosen for teaching. Position sizing, taxes,
-  fees, survivorship bias, and walk-forward validation are all out of scope.
+- Everything is a simplification chosen for teaching. Backtests model whole
+  shares, a flat commission and no slippage; taxes, survivorship bias, and
+  walk-forward validation are all out of scope. A good-looking equity curve is
+  as likely to be a curve-fit as a strategy.
 
 > Educational analysis only — not financial advice. Past performance does not
 > predict future returns.
