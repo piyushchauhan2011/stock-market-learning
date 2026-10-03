@@ -13,6 +13,7 @@ Modules
 - :mod:`stocklearn.broker`       paper broker: positions, fills, P&L accounting
 - :mod:`stocklearn.strategy`     strategy interface + example strategies
 - :mod:`stocklearn.backtest`     bar-by-bar backtester + metrics
+- :mod:`stocklearn.google_finance`  Google Finance quote + ~1 month of daily bars (hand-rolled)
 
 Educational use only — not financial advice.
 """

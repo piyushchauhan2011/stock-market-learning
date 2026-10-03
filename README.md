@@ -1,11 +1,12 @@
 # Stock Market Learning
 
 A hands-on, notebook-driven introduction to stock-market analysis in Python.
-Thirteen ordered notebooks (00–12) walk through price data, charts,
+Fifteen ordered notebooks (00–14) walk through price data, charts,
 hand-computed technical indicators, risk statistics, company fundamentals, news
-sentiment, research documents, a composite "will this stock go up?" report, and
-finally the trading layer — orders, a paper broker, strategies and backtests —
-all built on a small, readable package (`stocklearn`) you can read end to end.
+sentiment, research documents, a composite "will this stock go up?" report,
+advanced support/resistance levels, and finally the trading layer — orders, a
+paper broker, strategies and backtests — all built on a small, readable package
+(`stocklearn`) you can read end to end.
 
 > **Educational analysis only — not financial advice.** Nothing here predicts
 > prices: the indicators and the final report are descriptive textbook heuristics.
@@ -49,6 +50,8 @@ sets the ticker in one place (`ticker = "AAPL"`), so swap it and re-run.
 | `10_orders_and_execution.ipynb` | The order lifecycle: market vs limit vs stop, what fills where, and take-profit / stop-loss brackets |
 | `11_backtesting_strategies.ipynb` | Defining a strategy, the no-lookahead rule, and reading return / CAGR / Sharpe / drawdown / win rate / profit factor |
 | `12_paper_trading.ipynb` | Placing orders by hand, stepping bars, watching fills and P&L — and why paper trading flatters you |
+| `13_google_finance.ipynb` | A second hand-rolled data source: the Google Finance quote, its ~1 month of daily bars, and what the public page does *not* give you |
+| `14_fibonacci_and_levels.ipynb` | Swing highs/lows, Fibonacci retracement and extensions, and classic pivot points — and how traders use them to place entry, stop and target |
 
 ## The `stocklearn` package
 
@@ -58,7 +61,8 @@ notebooks call it rather than duplicating logic.
 | Module | Responsibility |
 | --- | --- |
 | `data.py` | `get_history()` (Yahoo OHLCV, Parquet-cached in `data/cache/`), `price_series()` |
-| `indicators.py` | Hand-computed `sma`, `ema`, `rsi`, `macd`, `bollinger`, `atr`, plus returns, volatility, drawdown, Sharpe |
+| `google_finance.py` | `get_quote()` + `get_history()` — hand-rolled Google Finance (no library): snapshot quote + ~1 month of daily OHLCV, exchange required |
+| `indicators.py` | Hand-computed `sma`, `ema`, `rsi`, `macd`, `bollinger`, `atr`, plus returns, volatility, drawdown, Sharpe, and the level tools `swing_highs_lows`/`recent_swing`, `fibonacci_levels`/`fibonacci_extensions`, `pivot_points` |
 | `fundamentals.py` | `get_financials()` (income/balance/cash-flow + info), `compute_ratios()` |
 | `news.py` | `get_news()` — Yahoo's news list plus Yahoo/Google RSS, de-duplicated |
 | `sentiment.py` | VADER scoring: `analyze_text`, `score_headlines`, `aggregate_sentiment` |
@@ -108,21 +112,24 @@ uv run pytest -q
 
 `tests/test_indicators.py` pins the indicator mathematics against hand-computed
 expectations (SMA/EMA definitions, RSI range and saturation, MACD histogram
-identity, Bollinger ordering, ATR, drawdown). `tests/test_orders.py`,
-`tests/test_broker.py` and `tests/test_backtest.py` do the same for the trading
-layer: order validation, fill prices (including gap-through behaviour), bracket
+identity, Bollinger ordering, ATR, drawdown, plus Fibonacci levels/extensions,
+swing detection and pivot points). `tests/test_google_finance.py` pins the
+Google Finance parser against a saved page fragment, so it never touches the
+network. `tests/test_orders.py`, `tests/test_broker.py` and
+`tests/test_backtest.py` do the same for the trading layer: order validation,
+fill prices (including gap-through behaviour), bracket
 priority, rejection paths, commission, position averaging, and the no-lookahead
 timing rule.
 
 ## Layout
 
 ```
-src/stocklearn/    the package (data, indicators, fundamentals, news, sentiment, docs, report,
-                   orders, broker, strategy, backtest)
-notebooks/         the 00–12 curriculum
+src/stocklearn/    the package (data, google_finance, indicators, fundamentals, news, sentiment,
+                   docs, report, orders, broker, strategy, backtest)
+notebooks/         the 00–14 curriculum
 scripts/           make_sample_docs.py — regenerates sample_docs/ (idempotent)
 sample_docs/       committed fixtures: earnings PDF, Excel model, Word research note
-tests/             indicator, order, broker and backtest unit tests
+tests/             indicator, google-finance parser, order, broker and backtest unit tests
 data/cache/        downloaded price/fundamental Parquet cache (git-ignored)
 ```
 
@@ -133,6 +140,10 @@ data/cache/        downloaded price/fundamental Parquet cache (git-ignored)
   and return `None` when a value is genuinely unavailable.
 - News sentiment is lexicon-based (VADER): deterministic and offline, but blind
   to sarcasm and context. Empty news means a neutral verdict, not good news.
+- Google Finance (via its public quote page) is snapshot-only — a quote plus
+  about one month of daily bars, no multi-year history. Its HTML markers are
+  undocumented and can change, so a parse failure raises `ValueError` /
+  `RuntimeError` with the reason instead of returning wrong data.
 - Everything is a simplification chosen for teaching. Backtests model whole
   shares, a flat commission and no slippage; taxes, survivorship bias, and
   walk-forward validation are all out of scope. A good-looking equity curve is
